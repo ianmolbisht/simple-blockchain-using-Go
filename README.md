@@ -16,7 +16,7 @@ Basic block validation (hash integrity, position check, chain linkage)
 
 🚀 Run the Application
 1. Clone the repository
-git clone https://github.com/yourusername/go-library-blockchain.git
+git clone https://github.com/ianmolbisht/simple-blockchain-using-Go.git
 cd go-library-blockchain
 
 2. Install dependencies
