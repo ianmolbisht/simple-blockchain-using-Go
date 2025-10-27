@@ -53,7 +53,8 @@ func CreateBlock(prevBlock *Block, checkoutitem BookCheckout) *Block {
 	block := &Block{}
 	block.Pos = prevBlock.Pos + 1
 	block.Timestamp = time.Now().String()
-	block.Prevhash = prevBlock.Prevhash
+	block.Prevhash = prevBlock.Hash
+	block.Data = checkoutitem
 	block.generateHash()
 	return block
 }
@@ -121,7 +122,7 @@ func newBook(w http.ResponseWriter, r *http.Request) {
 	}
 	h := md5.New()
 	io.WriteString(h, book.ISBN+book.PublishDate)
-	book.Id = fmt.Sprint("%x", h.Sum(nil))
+	book.Id = fmt.Sprintf("%x", h.Sum(nil))
 
 	resp, err := json.MarshalIndent(book, "", " ")
 	if err != nil {
