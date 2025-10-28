@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -38,8 +39,11 @@ type BookCheckout struct {
 }
 
 type Blockchain struct {
-	blocks []*Block
+	Blocks []*Block `json:"blocks"`
 }
+
+var BlockChain *Blockchain
+const chainFile = "blockchain.json"
 
 func (b *Block) generateHash() {
 	bytes, _ := json.Marshal(b.Data)
@@ -60,14 +64,13 @@ func CreateBlock(prevBlock *Block, checkoutitem BookCheckout) *Block {
 }
 
 func (bc *Blockchain) AddBlock(data BookCheckout) {
-	prevBlock := bc.blocks[len(bc.blocks)-1]
+	prevBlock := bc.Blocks[len(bc.Blocks)-1]
 	block := CreateBlock(prevBlock, data)
 	if validBlock(block, prevBlock) {
-		bc.blocks = append(bc.blocks, block)
+		bc.Blocks = append(bc.Blocks, block)
+		saveBlockchain(bc)
 	}
 }
-
-var BlockChain *Blockchain
 
 func validBlock(block, prevBlock *Block) bool {
 	if prevBlock.Hash != block.Prevhash {
@@ -87,8 +90,77 @@ func (b *Block) ValidateHash(hash string) bool {
 	return b.Hash == hash
 }
 
+func GenesisBlock() *Block {
+	genesis := &Block{
+		Pos:       0,
+		Timestamp: time.Now().Format(time.RFC3339),
+		Data:      BookCheckout{IsGenesis: true},
+		Prevhash:  "",
+	}
+	genesis.generateHash()
+	return genesis
+}
+
+func NewBlockChain() *Blockchain {
+	bc := &Blockchain{}
+	if fileExists(chainFile) {
+		loaded := loadBlockchain()
+		if loaded != nil && len(loaded.Blocks) > 0 {
+			return loaded
+		}
+	}
+	bc.Blocks = []*Block{GenesisBlock()}
+	saveBlockchain(bc)
+	return bc
+}
+
+func saveBlockchain(bc *Blockchain) {
+	tmp := chainFile + ".tmp"
+
+	file, err := os.Create(tmp)
+	if err != nil {
+		log.Printf("Error creating temp blockchain file: %v", err)
+		return
+	}
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(bc); err != nil {
+		log.Printf("Error encoding blockchain: %v", err)
+		file.Close()
+		return
+	}
+	file.Close()
+
+	if _, err := os.Stat(chainFile); err == nil {
+		os.Remove(chainFile)
+	}
+
+	if err := os.Rename(tmp, chainFile); err != nil {
+		log.Printf("Error renaming blockchain file: %v", err)
+	}
+}
+
+func loadBlockchain() *Blockchain {
+	data, err := os.ReadFile(chainFile)
+	if err != nil {
+		log.Printf("Error reading chain file: %v", err)
+		return nil
+	}
+	var bc Blockchain
+	if err := json.Unmarshal(data, &bc); err != nil {
+		log.Printf("Error unmarshalling chain: %v", err)
+		return nil
+	}
+	return &bc
+}
+
+func fileExists(name string) bool {
+	_, err := os.Stat(name)
+	return err == nil
+}
+
 func getBlockChain(w http.ResponseWriter, r *http.Request) {
-	jbytes, err := json.MarshalIndent(BlockChain.blocks, "", "  ")
+	jbytes, err := json.MarshalIndent(BlockChain.Blocks, "", "  ")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(err)
@@ -115,7 +187,6 @@ func writeBlock(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-
 func newBook(w http.ResponseWriter, r *http.Request) {
 	var book Book
 	if err := json.NewDecoder(r.Body).Decode(&book); err != nil {
@@ -129,22 +200,6 @@ func newBook(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(book)
-}
-
-
-func GenesisBlock() *Block {
-	genesis := &Block{
-		Pos:       0,
-		Timestamp: time.Now().Format(time.RFC3339),
-		Data:      BookCheckout{IsGenesis: true},
-		Prevhash:  "",
-	}
-	genesis.generateHash()
-	return genesis
-}
-
-func NewBlockChain() *Blockchain {
-	return &Blockchain{[]*Block{GenesisBlock()}}
 }
 
 func middlewareCORS(next http.Handler) http.Handler {
@@ -165,9 +220,9 @@ func main() {
 	r := mux.NewRouter()
 	r.Use(middlewareCORS)
 
-	r.HandleFunc("/", getBlockChain).Methods("GET")
-	r.HandleFunc("/", writeBlock).Methods("POST")
-	r.HandleFunc("/new", newBook).Methods("POST")
+	r.HandleFunc("/", getBlockChain).Methods("GET", "OPTIONS")
+	r.HandleFunc("/", writeBlock).Methods("POST", "OPTIONS")
+	r.HandleFunc("/new", newBook).Methods("POST", "OPTIONS")
 
 	log.Println("Listening on port 3000")
 	log.Fatal(http.ListenAndServe(":3000", r))

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Add Book & Block</title>
+  <style>
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Segoe UI', monospace;
+      padding: 20px;
+    }
+    h1 { text-align: center; color: #58a6ff; margin-bottom: 20px; }
+    form {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+      width: 350px;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    input, button {
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    input { background: #0d1117; color: #e6edf3; border: 1px solid #30363d; }
+    button { background: #238636; color: white; cursor: pointer; }
+    button:hover { background: #2ea043; }
+    #status { text-align: center; margin-top: 15px; font-size: 14px; color: #58a6ff; }
+  </style>
+</head>
+<body>
+  <h1>Add Book & Block</h1>
+  <form id="addForm">
+    <input id="title" placeholder="Book Title" required>
+    <input id="author" placeholder="Author" required>
+    <input id="publish_date" type="date" required>
+    <input id="isbn" placeholder="ISBN" required>
+    <input id="user" placeholder="User (Borrower)" required>
+    <input id="checkout_date" type="date" required>
+    <button type="submit">Add Block</button>
+  </form>
+  <div id="status"></div>
+
+  <script>
+    const apiBase = "http://localhost:3000";
+    const form = document.getElementById("addForm");
+    const status = document.getElementById("status");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      // Step 1: create book and get ID
+      const bookRes = await fetch(`${apiBase}/new`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.value,
+          author: author.value,
+          publish_date: publish_date.value,
+          isbn: isbn.value
+        })
+      });
+      const book = await bookRes.json();
+      if (!book.id) {
+        status.textContent = "Failed to create book.";
+        return;
+      }
+
+      // Step 2: add block
+      const blockRes = await fetch(apiBase + "/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookid: book.id,
+          user: user.value,
+          checkout_date: checkout_date.value,
+          is_genesis: false
+        })
+      });
+
+      const blockOut = await blockRes.json();
+      if (blockOut.status === "block added") {
+        status.textContent = `Book ID ${book.id} added to blockchain.`;
+      } else {
+        status.textContent = "Failed to add block.";
+      }
+    });
+  </script>
+</body>
+</html>
