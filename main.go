@@ -10,8 +10,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
-
 	"github.com/gorilla/mux"
 )
 
@@ -43,7 +43,10 @@ type Blockchain struct {
 }
 
 var BlockChain *Blockchain
-const chainFile = "blockchain.json"
+const (
+	chainFile  = "blockchain.json"
+	difficulty = 3
+)
 
 func (b *Block) generateHash() {
 	bytes, _ := json.Marshal(b.Data)
@@ -53,13 +56,24 @@ func (b *Block) generateHash() {
 	b.Hash = hex.EncodeToString(hash.Sum(nil))
 }
 
+func (b *Block) mineBlock() {
+	target := strings.Repeat("0", difficulty)
+	for {
+		b.generateHash()
+		if strings.HasPrefix(b.Hash, target) {
+			break
+		}
+		b.Timestamp = time.Now().Format(time.RFC3339Nano)
+	}
+}
+
 func CreateBlock(prevBlock *Block, checkoutitem BookCheckout) *Block {
 	block := &Block{}
 	block.Pos = prevBlock.Pos + 1
 	block.Timestamp = time.Now().Format(time.RFC3339)
 	block.Prevhash = prevBlock.Hash
 	block.Data = checkoutitem
-	block.generateHash()
+	block.mineBlock()
 	return block
 }
 
@@ -82,6 +96,9 @@ func validBlock(block, prevBlock *Block) bool {
 	if prevBlock.Pos+1 != block.Pos {
 		return false
 	}
+	if !strings.HasPrefix(block.Hash, strings.Repeat("0", difficulty)) {
+		return false
+	}
 	return true
 }
 
@@ -97,7 +114,7 @@ func GenesisBlock() *Block {
 		Data:      BookCheckout{IsGenesis: true},
 		Prevhash:  "",
 	}
-	genesis.generateHash()
+	genesis.mineBlock()
 	return genesis
 }
 
@@ -172,7 +189,7 @@ func getBlockChain(w http.ResponseWriter, r *http.Request) {
 
 func writeBlock(w http.ResponseWriter, r *http.Request) {
 	var checkoutitem BookCheckout
-	if err := json.NewDecoder(r.Body).Decode(&checkoutitem); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&checkoutitem); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		log.Printf("Could not decode block: %v", err)
 		w.Write([]byte(`{"error":"invalid payload"}`))
@@ -186,6 +203,16 @@ func writeBlock(w http.ResponseWriter, r *http.Request) {
 		"status": "block added",
 	})
 }
+
+func isDuplicate(bc *Blockchain, data BookCheckout) bool {
+	for _, block := range bc.Blocks {
+		if block.Data == data {
+			return true
+		}
+	}
+	return false
+}
+
 
 func newBook(w http.ResponseWriter, r *http.Request) {
 	var book Book
