@@ -11,6 +11,8 @@ Book creation with MD5-based unique ID generation
 
 Genesis block creation at startup
 
+Proof of work concept of blockchain 
+
 Basic block validation (hash integrity, position check, chain linkage)
 
 
