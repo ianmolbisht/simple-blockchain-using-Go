@@ -81,7 +81,7 @@
   <script>
     const chainContainer = document.getElementById("chain");
     async function loadBlockchain() {
-      const res = await fetch("https://blockchain-library-f4ar.onrender.com/");
+    const res = await fetch("http://localhost:3000/");
       const blocks = await res.json();
       chainContainer.innerHTML = "";
 
